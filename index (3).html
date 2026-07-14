@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>PrivatChat</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#075E54">
+<style>
+  :root{
+    --green:#075E54;
+    --green-light:#25D366;
+    --bg-chat:#ECE5DD;
+    --bubble-me:#DCF8C6;
+    --bubble-other:#FFFFFF;
+    --gray:#8696a0;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+    height:100vh;overflow:hidden;background:#f0f0f0;
+  }
+  #app{height:100vh;display:flex;flex-direction:column;}
+
+  /* --- Auth Screen --- */
+  #auth-screen{
+    display:flex;align-items:center;justify-content:center;height:100%;
+    background:linear-gradient(135deg,var(--green),#128C7E);
+  }
+  .auth-box{
+    background:#fff;padding:32px;border-radius:16px;width:320px;max-width:90vw;
+    box-shadow:0 10px 30px rgba(0,0,0,.2);
+  }
+  .auth-box h1{margin:0 0 4px;color:var(--green);font-size:24px;}
+  .auth-box p{margin:0 0 20px;color:#666;font-size:13px;}
+  .auth-box input{
+    width:100%;padding:12px;margin-bottom:12px;border:1px solid #ddd;border-radius:8px;font-size:14px;
+  }
+  .auth-box button{
+    width:100%;padding:12px;background:var(--green);color:#fff;border:none;border-radius:8px;
+    font-size:15px;cursor:pointer;font-weight:600;
+  }
+  .auth-box button:hover{background:#064c44;}
+  .switch-link{text-align:center;margin-top:14px;font-size:13px;color:var(--green);cursor:pointer;}
+  .error-msg{color:#e63946;font-size:12px;margin-bottom:10px;min-height:14px;}
+
+  /* --- Main App --- */
+  #main-screen{display:none;height:100%;flex-direction:row;}
+  #sidebar{
+    width:100%;max-width:380px;border-right:1px solid #ddd;display:flex;flex-direction:column;background:#fff;
+  }
+  #sidebar-header{
+    background:var(--green);color:#fff;padding:16px;display:flex;justify-content:space-between;align-items:center;
+  }
+  #sidebar-header span{font-weight:600;}
+  #sidebar-header button{background:transparent;border:none;color:#fff;font-size:13px;cursor:pointer;text-decoration:underline;}
+  #new-chat-bar{padding:10px;display:flex;gap:6px;border-bottom:1px solid #eee;}
+  #new-chat-bar input{flex:1;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;}
+  #new-chat-bar button{padding:9px 12px;background:var(--green-light);border:none;border-radius:8px;color:#fff;cursor:pointer;font-size:13px;}
+  #chat-list{flex:1;overflow-y:auto;}
+  .chat-item{
+    padding:14px 16px;border-bottom:1px solid #f2f2f2;cursor:pointer;display:flex;flex-direction:column;
+  }
+  .chat-item:hover{background:#f7f7f7;}
+  .chat-item.active{background:#eafaf3;}
+  .chat-item .name{font-weight:600;font-size:14px;}
+  .chat-item .sub{font-size:12px;color:var(--gray);}
+
+  #chat-screen{flex:1;display:none;flex-direction:column;background:var(--bg-chat);}
+  #chat-header{
+    background:var(--green);color:#fff;padding:14px 16px;display:flex;align-items:center;gap:10px;
+  }
+  #chat-header .back{display:none;background:none;border:none;color:#fff;font-size:20px;cursor:pointer;}
+  #messages{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:8px;}
+  .msg{
+    max-width:70%;padding:8px 12px;border-radius:10px;font-size:14px;line-height:1.4;position:relative;
+    box-shadow:0 1px 1px rgba(0,0,0,.08);
+  }
+  .msg.me{align-self:flex-end;background:var(--bubble-me);}
+  .msg.other{align-self:flex-start;background:var(--bubble-other);}
+  .msg .time{display:block;font-size:10px;color:var(--gray);margin-top:4px;text-align:right;}
+  #input-bar{display:flex;padding:10px;gap:8px;background:#f0f0f0;}
+  #input-bar input{flex:1;padding:12px;border:none;border-radius:20px;font-size:14px;}
+  #input-bar button{
+    background:var(--green);color:#fff;border:none;border-radius:50%;width:44px;height:44px;font-size:18px;cursor:pointer;
+  }
+  #empty-hint{flex:1;display:flex;align-items:center;justify-content:center;color:var(--gray);font-size:14px;text-align:center;padding:20px;}
+
+  @media (max-width:768px){
+    #sidebar{max-width:100%;}
+    #sidebar.hide-mobile{display:none;}
+    #chat-screen.show-mobile{display:flex !important;}
+    #chat-header .back{display:block;}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- AUTH -->
+  <div id="auth-screen">
+    <div class="auth-box">
+      <h1>PrivatChat</h1>
+      <p>Nur für dich und deine Freunde. Ende-zu-Ende-verschlüsselt.</p>
+      <div class="error-msg" id="auth-error"></div>
+      <input type="email" id="email-input" placeholder="E-Mail-Adresse">
+      <input type="password" id="password-input" placeholder="Passwort (mind. 6 Zeichen)">
+      <button id="auth-submit-btn">Anmelden</button>
+      <div class="switch-link" id="switch-mode">Noch kein Konto? Jetzt registrieren</div>
+      <div class="switch-link" id="forgot-pw" style="margin-top:6px;">Passwort vergessen?</div>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div id="main-screen">
+    <div id="sidebar">
+      <div id="sidebar-header">
+        <span id="my-email"></span>
+        <div>
+          <button id="change-pw-btn" style="margin-right:8px;">Passwort ändern</button>
+          <button id="logout-btn">Abmelden</button>
+        </div>
+      </div>
+      <div id="new-chat-bar">
+        <input type="email" id="friend-email" placeholder="E-Mail deines Freundes">
+        <button id="start-chat-btn">Chat</button>
+      </div>
+      <div id="chat-list"></div>
+    </div>
+
+    <div id="chat-screen">
+      <div id="chat-header">
+        <button class="back" id="back-btn">←</button>
+        <span id="chat-title"></span>
+      </div>
+      <div id="messages"></div>
+      <div id="input-bar">
+        <input type="text" id="message-input" placeholder="Nachricht schreiben...">
+        <button id="send-btn">➤</button>
+      </div>
+    </div>
+    <div id="empty-hint">Wähle links einen Chat aus oder starte einen neuen mit der E-Mail deines Freundes.</div>
+  </div>
+
+</div>
+
+<!-- Firebase (compat SDK, kein Build-Tool nötig) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+<script>
+/* =========================================================
+   1) HIER DEINE FIREBASE-KONFIGURATION EINTRAGEN
+   Firebase Console -> Projekteinstellungen -> "Web-App hinzufügen"
+   ========================================================= */
+const firebaseConfig = {
+  apiKey: "AIzaSyC-Q7KY1gzrnFfhu7VTzPvTktm_Jlmyzpg",
+  authDomain: "neonchat-2911.firebaseapp.com",
+  projectId: "neonchat-2911",
+  storageBucket: "neonchat-2911.firebasestorage.app",
+  messagingSenderId: "906445742119",
+  appId: "1:906445742119:web:dddf28a725327f658aee02"
+};
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+let currentUser = null;
+let currentChatId = null;
+let currentChatKey = null; // CryptoKey für aktuellen Chat
+let unsubscribeMessages = null;
+let isRegisterMode = false;
+
+/* =========================================================
+   2) VERSCHLÜSSELUNG (AES-GCM, Web Crypto API)
+   Jeder Chat hat ein gemeinsames Geheim-Passwort, das NUR
+   die beiden Chatpartner kennen. Es wird NIEMALS an Firebase
+   gesendet, sondern nur lokal im Browser (localStorage)
+   gespeichert und daraus ein Schlüssel abgeleitet.
+   Firebase/Google sieht nur unlesbaren Geheimtext.
+   ========================================================= */
+async function deriveKey(passphrase, saltStr){
+  const enc = new TextEncoder();
+  const salt = enc.encode(saltStr);
+  const baseKey = await crypto.subtle.importKey(
+    "raw", enc.encode(passphrase), "PBKDF2", false, ["deriveKey"]
+  );
+  return crypto.subtle.deriveKey(
+    { name:"PBKDF2", salt, iterations:100000, hash:"SHA-256" },
+    baseKey,
+    { name:"AES-GCM", length:256 },
+    false,
+    ["encrypt","decrypt"]
+  );
+}
+
+async function encryptText(key, text){
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const enc = new TextEncoder();
+  const cipher = await crypto.subtle.encrypt({name:"AES-GCM", iv}, key, enc.encode(text));
+  return {
+    iv: btoa(String.fromCharCode(...iv)),
+    data: btoa(String.fromCharCode(...new Uint8Array(cipher)))
+  };
+}
+
+async function decryptText(key, ivB64, dataB64){
+  try{
+    const iv = Uint8Array.from(atob(ivB64), c=>c.charCodeAt(0));
+    const data = Uint8Array.from(atob(dataB64), c=>c.charCodeAt(0));
+    const plain = await crypto.subtle.decrypt({name:"AES-GCM", iv}, key, data);
+    return new TextDecoder().decode(plain);
+  }catch(e){
+    return "[Nachricht konnte nicht entschlüsselt werden]";
+  }
+}
+
+function chatIdFor(emailA, emailB){
+  return [emailA.toLowerCase(), emailB.toLowerCase()].sort().join("__").replace(/[.#$/\[\]@]/g,"_");
+}
+
+/* =========================================================
+   3) AUTH
+   ========================================================= */
+const authError = document.getElementById("auth-error");
+const emailInput = document.getElementById("email-input");
+const passwordInput = document.getElementById("password-input");
+const authSubmitBtn = document.getElementById("auth-submit-btn");
+const switchMode = document.getElementById("switch-mode");
+
+switchMode.onclick = () => {
+  isRegisterMode = !isRegisterMode;
+  authSubmitBtn.textContent = isRegisterMode ? "Registrieren" : "Anmelden";
+  switchMode.textContent = isRegisterMode ? "Schon ein Konto? Jetzt anmelden" : "Noch kein Konto? Jetzt registrieren";
+  authError.textContent = "";
+};
+
+authSubmitBtn.onclick = async () => {
+  authError.textContent = "";
+  const email = emailInput.value.trim();
+  const pw = passwordInput.value;
+  if(!email || !pw){ authError.textContent = "Bitte E-Mail und Passwort eingeben."; return; }
+  try{
+    if(isRegisterMode){
+      const cred = await auth.createUserWithEmailAndPassword(email, pw);
+      await cred.user.sendEmailVerification();
+      authError.style.color = "#0a7a4a";
+      authError.textContent = "Konto erstellt! Bitte bestätige deine E-Mail über den Link, den wir dir geschickt haben.";
+    }else{
+      await auth.signInWithEmailAndPassword(email, pw);
+    }
+  }catch(e){
+    authError.style.color = "#e63946";
+    authError.textContent = translateError(e.code);
+  }
+};
+
+document.getElementById("forgot-pw").onclick = async () => {
+  const email = emailInput.value.trim();
+  if(!email){ authError.style.color = "#e63946"; authError.textContent = "Bitte zuerst deine E-Mail oben eintragen."; return; }
+  try{
+    await auth.sendPasswordResetEmail(email);
+    authError.style.color = "#0a7a4a";
+    authError.textContent = "Link zum Zurücksetzen wurde an " + email + " geschickt.";
+  }catch(e){
+    authError.style.color = "#e63946";
+    authError.textContent = translateError(e.code);
+  }
+};
+
+function translateError(code){
+  const map = {
+    "auth/email-already-in-use":"Diese E-Mail wird bereits verwendet.",
+    "auth/invalid-email":"Ungültige E-Mail-Adresse.",
+    "auth/weak-password":"Passwort zu schwach (mind. 6 Zeichen).",
+    "auth/user-not-found":"Kein Konto mit dieser E-Mail gefunden.",
+    "auth/wrong-password":"Falsches Passwort.",
+    "auth/invalid-credential":"E-Mail oder Passwort falsch."
+  };
+  return map[code] || "Fehler: " + code;
+}
+
+document.getElementById("logout-btn").onclick = () => auth.signOut();
+
+document.getElementById("change-pw-btn").onclick = async () => {
+  const current = prompt("Zur Sicherheit: aktuelles Passwort eingeben");
+  if(!current) return;
+  const neu = prompt("Neues Passwort (mind. 6 Zeichen):");
+  if(!neu || neu.length < 6){ alert("Passwort muss mind. 6 Zeichen haben."); return; }
+  try{
+    const cred = firebase.auth.EmailAuthProvider.credential(currentUser.email, current);
+    await currentUser.reauthenticateWithCredential(cred);
+    await currentUser.updatePassword(neu);
+    alert("Passwort wurde geändert.");
+  }catch(e){
+    alert(translateError(e.code));
+  }
+};
+
+auth.onAuthStateChanged(async user => {
+  currentUser = user;
+  if(user){
+    document.getElementById("auth-screen").style.display = "none";
+    document.getElementById("main-screen").style.display = "flex";
+    document.getElementById("my-email").textContent = user.email;
+    loadChatList();
+  }else{
+    document.getElementById("auth-screen").style.display = "flex";
+    document.getElementById("main-screen").style.display = "none";
+    if(unsubscribeMessages) unsubscribeMessages();
+  }
+});
+
+/* =========================================================
+   4) CHATLISTE
+   ========================================================= */
+function loadChatList(){
+  db.collection("chats")
+    .where("participants", "array-contains", currentUser.email.toLowerCase())
+    .onSnapshot(snap => {
+      const list = document.getElementById("chat-list");
+      list.innerHTML = "";
+      snap.forEach(doc => {
+        const chat = doc.data();
+        const other = chat.participants.find(p => p !== currentUser.email.toLowerCase());
+        const div = document.createElement("div");
+        div.className = "chat-item" + (doc.id === currentChatId ? " active" : "");
+        div.innerHTML = `<div class="name">${other}</div><div class="sub">Ende-zu-Ende-verschlüsselt</div>`;
+        div.onclick = () => openChat(doc.id, other);
+        list.appendChild(div);
+      });
+    });
+}
+
+document.getElementById("start-chat-btn").onclick = async () => {
+  const friend = document.getElementById("friend-email").value.trim().toLowerCase();
+  if(!friend || friend === currentUser.email.toLowerCase()){ return; }
+  const id = chatIdFor(currentUser.email, friend);
+  const ref = db.collection("chats").doc(id);
+  const snap = await ref.get();
+  if(!snap.exists){
+    await ref.set({
+      participants: [currentUser.email.toLowerCase(), friend],
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+  }
+  openChat(id, friend);
+  document.getElementById("friend-email").value = "";
+};
+
+/* =========================================================
+   5) CHAT ÖFFNEN + GEHEIM-PASSWORT ABFRAGEN
+   ========================================================= */
+async function openChat(chatId, otherEmail){
+  currentChatId = chatId;
+  document.getElementById("empty-hint").style.display = "none";
+  document.getElementById("chat-screen").style.display = "flex";
+  document.getElementById("chat-title").textContent = otherEmail;
+
+  if(window.innerWidth <= 768){
+    document.getElementById("sidebar").classList.add("hide-mobile");
+    document.getElementById("chat-screen").classList.add("show-mobile");
+  }
+
+  // Gemeinsames Geheim-Passwort für diesen Chat (lokal gespeichert, nie an Firebase gesendet)
+  let secret = localStorage.getItem("secret_" + chatId);
+  if(!secret){
+    secret = prompt(
+      "Geheimes Chat-Passwort für " + otherEmail + ":\n" +
+      "Beide müssen dasselbe Passwort eingeben (z.B. persönlich vereinbaren). " +
+      "Es wird nur bei dir im Browser gespeichert, niemals an den Server gesendet."
+    );
+    if(!secret){ secret = "standard-unsicher-bitte-aendern"; }
+    localStorage.setItem("secret_" + chatId, secret);
+  }
+  currentChatKey = await deriveKey(secret, chatId);
+
+  document.getElementById("messages").innerHTML = "";
+  if(unsubscribeMessages) unsubscribeMessages();
+
+  unsubscribeMessages = db.collection("chats").doc(chatId)
+    .collection("messages")
+    .orderBy("createdAt", "asc")
+    .onSnapshot(async snap => {
+      const box = document.getElementById("messages");
+      box.innerHTML = "";
+      for(const doc of snap.docs){
+        const m = doc.data();
+        const text = await decryptText(currentChatKey, m.iv, m.data);
+        const div = document.createElement("div");
+        div.className = "msg " + (m.sender === currentUser.email.toLowerCase() ? "me" : "other");
+        const time = m.createdAt ? new Date(m.createdAt.toDate()).toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"}) : "";
+        div.innerHTML = escapeHtml(text) + `<span class="time">${time}</span>`;
+        box.appendChild(div);
+      }
+      box.scrollTop = box.scrollHeight;
+    });
+
+  document.querySelectorAll(".chat-item").forEach(el => el.classList.remove("active"));
+}
+
+document.getElementById("back-btn").onclick = () => {
+  document.getElementById("sidebar").classList.remove("hide-mobile");
+  document.getElementById("chat-screen").classList.remove("show-mobile");
+};
+
+function escapeHtml(str){
+  const d = document.createElement("div");
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+/* =========================================================
+   6) NACHRICHT SENDEN
+   ========================================================= */
+async function sendMessage(){
+  const input = document.getElementById("message-input");
+  const text = input.value.trim();
+  if(!text || !currentChatId || !currentChatKey) return;
+  const enc = await encryptText(currentChatKey, text);
+  await db.collection("chats").doc(currentChatId).collection("messages").add({
+    sender: currentUser.email.toLowerCase(),
+    iv: enc.iv,
+    data: enc.data,
+    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+  });
+  input.value = "";
+}
+document.getElementById("send-btn").onclick = sendMessage;
+document.getElementById("message-input").addEventListener("keydown", e => {
+  if(e.key === "Enter") sendMessage();
+});
+
+/* PWA: Service Worker registrieren, damit die App auf Handy/PC installierbar ist */
+if("serviceWorker" in navigator){
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js").catch(()=>{});
+  });
+}
+</script>
+</body>
+</html>
